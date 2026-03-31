@@ -1,9 +1,14 @@
-name: Build APK
+name: Build & Release
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0)'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -40,9 +45,27 @@ jobs:
       - name: Build debug APK
         run: cd android && ./gradlew assembleDebug
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Extract APK from artifact zip
+        run: |
+          unzip -j android/app/build/outputs/apk/debug/*.apk -d apks/
+          ls -la apks/
+
+      - name: Create Release
+        if: github.event.inputs.version != ''
+        uses: softprops/action-gh-release@v2
         with:
-          name: babycare-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 14
+          tag_name: ${{ github.event.inputs.version }}
+          files: android/app/build/outputs/apk/debug/*.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to existing Release
+        if: github.event.inputs.version == ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/debug/*.apk
+          allow_updates: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
